@@ -54,8 +54,16 @@ export function clampRange({ from, to }: Range, meta: Pick<Meta, "available_from
   return { from, to };
 }
 
-/** 규칙 6: "어제" = last_complete_date, "최근 N일" = available_to에서 거꾸로 N일 */
+/**
+ * 규칙 6: "오늘" = generated_at의 KST 날짜(진행 중), "어제" = last_complete_date,
+ * "최근 N일" = available_to에서 거꾸로 N일. days 0은 오늘.
+ */
 export function presetRange(days: number, meta: Meta): Range {
+  if (days === 0) {
+    // generated_at은 +09:00 ISO 문자열이라 앞 10자가 KST 날짜다
+    const today = meta.generated_at.slice(0, 10);
+    return { from: today, to: today };
+  }
   if (days === 1) return { from: meta.last_complete_date, to: meta.last_complete_date };
   return clampRange({ from: addDays(meta.available_to, -(days - 1)), to: meta.available_to }, meta);
 }

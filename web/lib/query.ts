@@ -9,10 +9,11 @@ import type { Category, Meta } from "./types";
 //   &cat=economy,world          카테고리 (없으면 전체)
 //   &view=daily|story           보기 방식 (없으면 기간 길이로 정한 기본값)
 
-export type PresetKey = "1d" | "3d" | "1w" | "2w";
+export type PresetKey = "today" | "1d" | "3d" | "1w" | "2w";
 export type { View };
 
 export const PRESETS: { key: PresetKey; label: string; days: number }[] = [
+  { key: "today", label: "오늘", days: 0 },
   { key: "1d", label: "어제", days: 1 },
   { key: "3d", label: "최근 3일", days: 3 },
   { key: "1w", label: "최근 1주", days: 7 },
@@ -37,7 +38,7 @@ function first(value: string | string[] | undefined): string | undefined {
   return Array.isArray(value) ? value[0] : value;
 }
 
-/** 계약 규칙 6: "어제" = last_complete_date, "최근 N일" = available_to에서 거꾸로 N일 */
+/** 계약 규칙 6: "오늘" = generated_at의 날짜, "어제" = last_complete_date, "최근 N일" = available_to에서 거꾸로 N일 */
 export function presetRange(key: PresetKey, meta: Meta) {
   return composePreset(PRESETS.find((p) => p.key === key)!.days, meta);
 }

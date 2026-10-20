@@ -95,4 +95,4 @@ interface Story extends StoryBrief {
    importance 내림차순 → (이슈면 기간 안 항목 수) 내림차순으로 5개.
    - 이슈: `"{title_ko} — {기간 안 최신 one_line_ko}"`, 사건: `title_ko`
 5. **보기 모드:** 기간 3일 이하는 날짜별, 그보다 길면 이슈별이 기본.
-6. **프리셋:** "어제" = `last_complete_date`, "최근 N일" = `available_to`에서 거꾸로 N일.
+6. **프리셋:** "오늘" = `generated_at`의 KST 날짜(진행 중, 매시간 갱신), "어제" = `last_complete_date`, "최근 N일" = `available_to`에서 거꾸로 N일.
