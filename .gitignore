@@ -1,0 +1,8 @@
+.DS_Store
+pipeline/data/
+pipeline/.venv/
+__pycache__/
+web/node_modules/
+web/.next/
+web/out/
+web/public/data/

@@ -1,0 +1,82 @@
+# 매시간 뉴스를 처리하고 정적 사이트를 GitHub Pages에 배포한다.
+# LLM 키는 이 워크플로의 pipeline 단계에만 들어간다. 외부 PR로는 실행되지 않는다(schedule, 수동 실행만).
+name: update
+
+on:
+  schedule:
+    - cron: "17 * * * *"   # 정시는 몰려서 밀리기 쉬워 17분에 실행
+  workflow_dispatch:
+
+permissions:
+  contents: write   # state 브랜치에 DB 저장
+  pages: write
+  id-token: write
+
+concurrency:
+  group: update
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      # 작업용 SQLite는 히스토리 없는 state 브랜치에 gzip 파일 하나로 둔다
+      - name: Restore state
+        run: |
+          mkdir -p pipeline/data
+          if git fetch --depth=1 origin state; then
+            git show FETCH_HEAD:newsbot.db.gz | gunzip > pipeline/data/newsbot.db
+          else
+            echo "state 브랜치 없음, 새 DB로 시작"
+          fi
+
+      - uses: astral-sh/setup-uv@v6
+
+      - name: Run pipeline
+        working-directory: pipeline
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+        run: |
+          uv run newsbot run
+          uv run newsbot export ../web/public/data
+
+      - name: Save state
+        working-directory: pipeline/data
+        env:
+          TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          gzip -9 -c newsbot.db > newsbot.db.gz
+          git init -q -b state
+          git add newsbot.db.gz
+          git -c user.name=newsbot -c user.email=newsbot@users.noreply.github.com commit -q -m "state $(date -u +%FT%TZ)"
+          git push -q --force "https://x-access-token:${TOKEN}@github.com/${REPO}.git" state
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Build web
+        working-directory: web
+        run: |
+          npm ci
+          npm run build
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: web/out
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - id: deploy
+        uses: actions/deploy-pages@v4

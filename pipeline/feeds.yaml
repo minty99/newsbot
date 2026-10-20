@@ -1,0 +1,33 @@
+# 수집 대상 RSS 피드. 2026-10-21에 모두 200 응답과 item 존재를 확인함.
+# category_hint는 LLM 분류의 참고값일 뿐 최종 카테고리는 아니다.
+verified_at: "2026-10-21"
+feeds:
+  # 국내
+  - {outlet: 연합뉴스, url: "https://www.yna.co.kr/rss/politics.xml", lang: ko, category_hint: politics}
+  - {outlet: 연합뉴스, url: "https://www.yna.co.kr/rss/northkorea.xml", lang: ko, category_hint: politics}
+  - {outlet: 연합뉴스, url: "https://www.yna.co.kr/rss/economy.xml", lang: ko, category_hint: economy}
+  - {outlet: 연합뉴스, url: "https://www.yna.co.kr/rss/industry.xml", lang: ko, category_hint: economy}
+  - {outlet: 연합뉴스, url: "https://www.yna.co.kr/rss/society.xml", lang: ko, category_hint: society}
+  - {outlet: 연합뉴스, url: "https://www.yna.co.kr/rss/international.xml", lang: ko, category_hint: world}
+  - {outlet: 연합뉴스, url: "https://www.yna.co.kr/rss/culture.xml", lang: ko, category_hint: culture}
+  - {outlet: 연합뉴스, url: "https://www.yna.co.kr/rss/sports.xml", lang: ko, category_hint: sports}
+  - {outlet: 한겨레, url: "https://www.hani.co.kr/rss/", lang: ko}
+  - {outlet: 경향신문, url: "https://www.khan.co.kr/rss/rssdata/total_news.xml", lang: ko}
+  - {outlet: 조선일보, url: "https://www.chosun.com/arc/outboundfeeds/rss/?outputType=xml", lang: ko}
+  - {outlet: 동아일보, url: "https://rss.donga.com/total.xml", lang: ko}
+  - {outlet: 매일경제, url: "https://www.mk.co.kr/rss/30000001/", lang: ko, category_hint: economy}
+  - {outlet: 한국경제, url: "https://www.hankyung.com/feed/all-news", lang: ko, category_hint: economy}
+  - {outlet: SBS, url: "https://news.sbs.co.kr/news/SectionRssFeed.do?sectionId=01", lang: ko}
+  - {outlet: JTBC, url: "https://fs.jtbc.co.kr/RSS/newsflash.xml", lang: ko}
+  - {outlet: Korea Herald, url: "https://www.koreaherald.com/rss/newsAll", lang: en}
+  # 해외
+  - {outlet: BBC, url: "https://feeds.bbci.co.uk/news/world/rss.xml", lang: en, category_hint: world}
+  - {outlet: BBC, url: "https://feeds.bbci.co.uk/news/business/rss.xml", lang: en, category_hint: economy}
+  - {outlet: BBC, url: "https://feeds.bbci.co.uk/news/technology/rss.xml", lang: en, category_hint: tech}
+  - {outlet: New York Times, url: "https://rss.nytimes.com/services/xml/rss/nyt/World.xml", lang: en, category_hint: world}
+  - {outlet: The Guardian, url: "https://www.theguardian.com/world/rss", lang: en, category_hint: world}
+  - {outlet: Al Jazeera, url: "https://www.aljazeera.com/xml/rss/all.xml", lang: en, category_hint: world}
+  - {outlet: NPR, url: "https://feeds.npr.org/1001/rss.xml", lang: en}
+  - {outlet: TechCrunch, url: "https://techcrunch.com/feed/", lang: en, category_hint: tech}
+  - {outlet: The Verge, url: "https://www.theverge.com/rss/index.xml", lang: en, category_hint: tech}
+  - {outlet: Ars Technica, url: "https://feeds.arstechnica.com/arstechnica/index", lang: en, category_hint: tech}
