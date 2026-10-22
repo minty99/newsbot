@@ -20,9 +20,10 @@ interface Meta {
   generated_at: string;        // 마지막 export 시각
   available_from: string;      // 데이터가 있는 첫 날짜
   available_to: string;        // 데이터가 있는 마지막 날짜(오늘, 진행 중일 수 있음)
-  last_complete_date: string;  // 하루가 끝난 마지막 날짜(보통 어제). 프리셋 "어제"의 기준
+  last_complete_date: string;  // 하루가 끝난 마지막 날짜(보통 어제)
   categories: { key: Category; label: string }[];
   days: string[];              // days/ 파일이 있는 날짜 목록, 오름차순
+  months: string[];            // months/YYYY-MM.json이 있는 월 목록, 오름차순
   story_months: string[];      // stories/index-YYYY-MM.json이 있는 월 목록, 오름차순
 }
 ```
@@ -44,6 +45,13 @@ interface Event {
   story_id: string | null;
   sources: { outlet: string; url: string; title: string; lang: "ko" | "en"; published_at: string }[]; // 최대 8개
 }
+```
+
+### `/data/months/YYYY-MM.json`
+긴 기간(15일 이상)용. 그 달의 importance 4 이상 사건을 날짜마다 최대 5개씩. 형식은 `days/`와 같고 `sources`만 최대 3개.
+기간이 길 때 날짜 파일 수백 개를 받지 않도록 한다.
+```ts
+interface Month { month: string; events: Event[] }  // 날짜 오름차순, 하루 안에서는 importance → 매체 수 내림차순
 ```
 
 ### `/data/stories/index-YYYY-MM.json`
@@ -79,13 +87,20 @@ interface Story extends StoryBrief {
 
 ## web이 하는 조합 (LLM 없음)
 
-기간 `[from, to]`(최대 31일)에 대해:
+기간 `[from, to]`(최대 186일)에 대해:
 
-1. **사건 목록:** `days/`에서 기간 안 파일을 받는다. 기간 길이로 최소 중요도와 하루 표시 개수를 정한다.
-   - 1~3일: importance ≥ 2, 하루 30개 / 4~7일: ≥ 3, 하루 12개 / 8일 이상: ≥ 4, 하루 12개
+1. **사건 목록:** 기간 길이로 읽을 파일, 최소 중요도, 하루 표시 개수를 정한다.
+
+   | 기간 | 파일 | 최소 importance | 하루 최대 |
+   |---|---|---|---|
+   | 1일 | `days/` | 2 | 30 |
+   | 2~14일 | `days/` | 3 | 12 |
+   | 15~62일 | `months/` | 4 | 5 |
+   | 63~186일 | `months/` | 5 | 3 |
+
    - 사용자가 카테고리를 고르면 그 카테고리만. 카테고리로 먼저 거른 뒤 하루 개수를 자른다.
 2. **기간 안 이슈:** 범위에 걸친 월의 `stories/index-*.json`에서 `timeline`에 기간 안 항목이 있는 이슈.
-   정렬: 기간 안 항목의 최대 importance 내림차순 → 기간 안 항목 수 내림차순. 최대 20개.
+   정렬: 기간 안 항목의 최대 importance 내림차순 → 기간 안 항목 수 내림차순. 기간 14일 이하는 최대 20개, 그보다 길면 30개.
    카테고리를 고르면 `categories`가 하나라도 겹치는 이슈만.
 3. **이슈 카드:**
    - 상태: `snapshots` 중 `date ≤ to`인 마지막 것. 그 날짜를 "M/D 기준"으로 표시.
@@ -94,5 +109,7 @@ interface Story extends StoryBrief {
 4. **기간 핵심(3~5줄):** 이슈(2의 상위)와 이슈에 속하지 않은 사건(1에서 `story_id`가 null)을 섞어
    importance 내림차순 → (이슈면 기간 안 항목 수) 내림차순으로 5개.
    - 이슈: `"{title_ko} — {기간 안 최신 one_line_ko}"`, 사건: `title_ko`
-5. **보기 모드:** 기간 3일 이하는 날짜별, 그보다 길면 이슈별이 기본.
-6. **프리셋:** "오늘" = `generated_at`의 KST 날짜(진행 중, 매시간 갱신), "어제" = `last_complete_date`, "최근 N일" = `available_to`에서 거꾸로 N일.
+5. **보기 모드:** 기간 1일은 날짜별, 그보다 길면 이슈별이 기본.
+6. **프리셋:** 오늘 · 2주 · 1개월 · 2개월 · 6개월.
+   - "오늘" = `generated_at`의 KST 날짜(진행 중, 매시간 갱신).
+   - 나머지는 `available_to`에서 거꾸로 14 · 30 · 60 · 180일. 데이터가 그보다 짧으면 `available_from`까지로 자른다.

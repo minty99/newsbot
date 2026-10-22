@@ -13,6 +13,10 @@ log = logging.getLogger(__name__)
 DAY_MIN_IMPORTANCE = 2
 DAY_MAX_EVENTS = 40
 MAX_SOURCES = 8
+# 긴 기간용 월별 파일: 중요한 사건만, 날짜마다 몇 개씩
+MONTH_MIN_IMPORTANCE = 4
+MONTH_PER_DAY = 5
+MONTH_MAX_SOURCES = 3
 
 
 def _write(path: Path, data) -> None:
@@ -20,10 +24,10 @@ def _write(path: Path, data) -> None:
     path.write_text(json.dumps(data, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
 
 
-def _event_json(conn, row, story_ids: set[int]) -> dict:
+def _event_json(conn, row, story_ids: set[int], max_sources: int = MAX_SOURCES) -> dict:
     sources = conn.execute(
         "SELECT outlet, url, title, lang, published_at FROM articles WHERE event_id = ? ORDER BY published_at LIMIT ?",
-        (row["id"], MAX_SOURCES),
+        (row["id"], max_sources),
     ).fetchall()
     return {
         "id": str(row["id"]),
@@ -93,6 +97,19 @@ def run(conn, out_dir: Path) -> None:
         ).fetchall()
         _write(out_dir / "days" / f"{day}.json", {"date": day, "events": [_event_json(conn, r, story_ids) for r in rows]})
 
+    month_events: dict[str, list[dict]] = {}
+    for day in days:
+        rows = conn.execute(
+            """SELECT * FROM events WHERE date = ? AND title_ko IS NOT NULL AND importance >= ?
+               ORDER BY importance DESC, outlet_count DESC, id LIMIT ?""",
+            (day, MONTH_MIN_IMPORTANCE, MONTH_PER_DAY),
+        ).fetchall()
+        month_events.setdefault(day[:7], []).extend(
+            _event_json(conn, r, story_ids, MONTH_MAX_SOURCES) for r in rows
+        )
+    for month, events in month_events.items():
+        _write(out_dir / "months" / f"{month}.json", {"month": month, "events": events})
+
     months: dict[str, list[dict]] = {}
     for sid, s in stories.items():
         brief = _brief(sid, s)
@@ -121,6 +138,7 @@ def run(conn, out_dir: Path) -> None:
         "last_complete_date": (now.date() - timedelta(days=1)).isoformat(),
         "categories": [{"key": k, "label": v} for k, v in config.CATEGORIES.items()],
         "days": days,
+        "months": sorted(month_events),
         "story_months": sorted(months),
     })
     log.info("내보내기: 날짜 %d개, 이슈 %d개 → %s", len(days), len(stories), out_dir)
