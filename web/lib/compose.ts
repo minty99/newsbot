@@ -1,7 +1,7 @@
 // 계약 v2 "web이 하는 조합" 규칙을 그대로 옮긴 순수 함수들. 네트워크·React에 의존하지 않는다.
 
 import { addDays, daysInclusive } from "./dates";
-import type { Category, Day, Event, Importance, Meta, Snapshot, StoryBrief, TimelineItem } from "./types";
+import type { Category, Day, Event, Importance, Meta, Month, Snapshot, StoryBrief, TimelineItem } from "./types";
 
 export interface Range {
   from: string;
@@ -10,20 +10,32 @@ export interface Range {
 
 export type View = "daily" | "story";
 
-export const MAX_RANGE_DAYS = 31;
-export const MAX_STORIES = 20;
+export const MAX_RANGE_DAYS = 186;
 export const HIGHLIGHT_COUNT = 5;
 
-/** 규칙 1: 기간 길이 → 최소 중요도, 하루 표시 개수 */
-export function rangeRules(days: number): { minImportance: Importance; perDay: number } {
-  if (days <= 3) return { minImportance: 2, perDay: 30 };
-  if (days <= 7) return { minImportance: 3, perDay: 12 };
-  return { minImportance: 4, perDay: 12 };
+export interface RangeRules {
+  /** 읽을 파일: 짧은 기간은 days/, 15일 이상은 months/ */
+  source: "days" | "months";
+  minImportance: Importance;
+  perDay: number;
 }
 
-/** 규칙 5: 3일 이하는 날짜별, 그보다 길면 이슈별 */
+/** 규칙 1: 기간 길이 → 읽을 파일, 최소 중요도, 하루 표시 개수 */
+export function rangeRules(days: number): RangeRules {
+  if (days <= 1) return { source: "days", minImportance: 2, perDay: 30 };
+  if (days <= 14) return { source: "days", minImportance: 3, perDay: 12 };
+  if (days <= 62) return { source: "months", minImportance: 4, perDay: 5 };
+  return { source: "months", minImportance: 5, perDay: 3 };
+}
+
+/** 규칙 2: 기간 안 이슈 최대 수 */
+export function maxStories(days: number): number {
+  return days <= 14 ? 20 : 30;
+}
+
+/** 규칙 5: 1일은 날짜별, 그보다 길면 이슈별 */
 export function defaultView(range: Range): View {
-  return daysInclusive(range.from, range.to) <= 3 ? "daily" : "story";
+  return daysInclusive(range.from, range.to) <= 1 ? "daily" : "story";
 }
 
 /** from~to 날짜 목록(오름차순) */
@@ -44,7 +56,7 @@ export function monthsInRange({ from, to }: Range): string[] {
   return out;
 }
 
-/** 데이터 범위 안으로 자르고 최대 31일로 제한(끝 날짜 기준) */
+/** 데이터 범위 안으로 자르고 최대 186일로 제한(끝 날짜 기준) */
 export function clampRange({ from, to }: Range, meta: Pick<Meta, "available_from" | "available_to">): Range {
   if (from > to) [from, to] = [to, from];
   to = to > meta.available_to ? meta.available_to : to < meta.available_from ? meta.available_from : to;
@@ -55,8 +67,8 @@ export function clampRange({ from, to }: Range, meta: Pick<Meta, "available_from
 }
 
 /**
- * 규칙 6: "오늘" = generated_at의 KST 날짜(진행 중), "어제" = last_complete_date,
- * "최근 N일" = available_to에서 거꾸로 N일. days 0은 오늘.
+ * 규칙 6: days 0 = "오늘"(generated_at의 KST 날짜, 진행 중).
+ * 나머지는 available_to에서 거꾸로 N일, 데이터가 그보다 짧으면 available_from까지로 자른다.
  */
 export function presetRange(days: number, meta: Meta): Range {
   if (days === 0) {
@@ -64,8 +76,14 @@ export function presetRange(days: number, meta: Meta): Range {
     const today = meta.generated_at.slice(0, 10);
     return { from: today, to: today };
   }
-  if (days === 1) return { from: meta.last_complete_date, to: meta.last_complete_date };
   return clampRange({ from: addDays(meta.available_to, -(days - 1)), to: meta.available_to }, meta);
+}
+
+/** months/ 파일을 days/와 같은 모양(날짜별)으로 바꾼다 */
+export function monthsToDays(months: Month[]): Day[] {
+  const byDate = new Map<string, Event[]>();
+  for (const e of months.flatMap((m) => m.events)) byDate.set(e.date, [...(byDate.get(e.date) ?? []), e]);
+  return [...byDate].map(([date, events]) => ({ date, events }));
 }
 
 const inCategories = (selected: Category[]) => (c: Category) => selected.length === 0 || selected.includes(c);
@@ -136,7 +154,7 @@ export function selectStories(indexes: StoryBrief[][], range: Range, categories:
   }
   return ranged
     .sort((a, b) => b.maxImportance - a.maxImportance || b.inRange.length - a.inRange.length)
-    .slice(0, MAX_STORIES);
+    .slice(0, maxStories(daysInclusive(range.from, range.to)));
 }
 
 // ── 규칙 3: 이슈 카드 ───────────────────────────────────────────

@@ -11,6 +11,7 @@ export interface Meta {
   last_complete_date: string; // 하루가 끝난 마지막 날짜(보통 어제). 프리셋 "어제"의 기준
   categories: { key: Category; label: string }[];
   days: string[]; // days/ 파일이 있는 날짜 목록, 오름차순
+  months: string[]; // months/YYYY-MM.json이 있는 월 목록, 오름차순
   story_months: string[]; // stories/index-YYYY-MM.json이 있는 월 목록, 오름차순
 }
 
@@ -39,6 +40,12 @@ export interface Event {
 export interface Day {
   date: string;
   events: Event[]; // importance 내림차순 → 매체 수 내림차순, 최대 40개
+}
+
+// /data/months/YYYY-MM.json — 긴 기간(15일 이상)용. importance 4 이상, 날짜마다 최대 5개, sources 최대 3개
+export interface Month {
+  month: string;
+  events: Event[]; // 날짜 오름차순, 하루 안에서는 importance → 매체 수 내림차순
 }
 
 export interface TimelineItem {

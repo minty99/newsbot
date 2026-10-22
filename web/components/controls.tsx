@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { CATEGORY_KEYS, CATEGORY_LABELS } from "@/lib/categories";
-import { formatRange } from "@/lib/dates";
+import { formatDate, formatRange } from "@/lib/dates";
 import type { Highlight } from "@/lib/compose";
 import { buildHref, PRESETS, rangeLength, type View, type ViewState } from "@/lib/query";
 import type { Meta } from "@/lib/types";
@@ -27,7 +27,7 @@ export function PeriodPicker({ state, meta }: { state: ViewState; meta: Meta }) 
   const custom = state.preset === null;
   return (
     <section aria-label="기간 선택">
-      <div className="no-scrollbar -mx-4 flex gap-2 overflow-x-auto px-4 pb-1 lg:mx-0 lg:grid lg:grid-cols-4 lg:gap-1.5 lg:overflow-visible lg:px-0">
+      <div className="no-scrollbar -mx-4 flex gap-2 overflow-x-auto px-4 pb-1 lg:mx-0 lg:grid lg:grid-cols-5 lg:gap-1 lg:overflow-visible lg:px-0">
         {PRESETS.map((p) => (
           <Pill key={p.key} href={buildHref(state, { preset: p.key, view: null })} active={state.preset === p.key}>
             {p.label}
@@ -80,7 +80,7 @@ export function PeriodPicker({ state, meta }: { state: ViewState; meta: Meta }) 
             보기
           </button>
           <p className="w-full text-xs text-text-3">
-            {formatRange(meta.available_from, meta.available_to)} 뉴스를 최대 31일씩 볼 수 있어요.
+            {formatRange(meta.available_from, meta.available_to)} 뉴스를 최대 6개월씩 볼 수 있어요.
           </p>
         </form>
       </details>
@@ -88,8 +88,14 @@ export function PeriodPicker({ state, meta }: { state: ViewState; meta: Meta }) 
       <p className="mt-3 text-sm text-text-2">
         <strong className="font-bold text-text">{formatRange(state.from, state.to)}</strong>
         <span className="text-text-3"> · {rangeLength(state)}일</span>
-        {state.clamped && <span className="text-text-3"> (최대 31일·제공 범위에 맞춰 조정됨)</span>}
       </p>
+      {state.clamped && (
+        <p className="mt-1 text-xs leading-relaxed text-text-3">
+          {state.preset
+            ? `아직 ${formatDate(meta.available_from, false)}부터의 뉴스만 있어서 그 이후를 보여드려요.`
+            : `볼 수 있는 범위(${formatRange(meta.available_from, meta.available_to)}, 최대 6개월)에 맞춰 기간을 조정했어요.`}
+        </p>
+      )}
     </section>
   );
 }

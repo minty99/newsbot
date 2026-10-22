@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { CategoryChips, Highlights, PeriodPicker, ViewTabs } from "@/components/controls";
 import { EventCard, EventRow } from "@/components/event-card";
@@ -10,14 +11,16 @@ import {
   datesInRange,
   defaultView,
   monthsInRange,
+  monthsToDays,
+  rangeRules,
   selectStories,
   type ComposedDay,
   type Range,
   type RangedStory,
 } from "@/lib/compose";
-import { getDays, getMeta, getStory, getStoryIndexes } from "@/lib/data";
-import { formatDate, formatRange } from "@/lib/dates";
-import { parseViewState, storyHref, type ViewState } from "@/lib/query";
+import { getDays, getMeta, getMonths, getStory, getStoryIndexes } from "@/lib/data";
+import { daysInclusive, formatDate, formatRange } from "@/lib/dates";
+import { buildHref, parseViewState, storyHref, type ViewState } from "@/lib/query";
 import type { Meta } from "@/lib/types";
 import { useAsync } from "@/lib/use-async";
 import { ErrorBox, Skeleton } from "./status";
@@ -35,8 +38,12 @@ interface Composed {
 }
 
 async function loadRange(meta: Meta, range: Range, categories: ViewState["categories"]): Promise<Composed> {
+  // 규칙 1: 15일 이상은 날짜 파일 수백 개 대신 월별 주요 사건 파일을 읽는다
+  const { source } = rangeRules(daysInclusive(range.from, range.to));
   const [days, indexes] = await Promise.all([
-    getDays(meta, datesInRange(range)),
+    source === "days"
+      ? getDays(meta, datesInRange(range))
+      : getMonths(meta, monthsInRange(range)).then(monthsToDays),
     getStoryIndexes(meta, monthsInRange(range)),
   ]);
   return { days: composeDays(days, range, categories), stories: selectStories(indexes, range, categories) };
@@ -51,6 +58,7 @@ function HomeWithMeta({ meta }: { meta: Meta }) {
   const recommended = defaultView(range);
   const view = state.view ?? recommended;
   const toStory = (id: string) => storyHref(id, state);
+  const rangeLength = daysInclusive(range.from, range.to);
 
   return (
     // 모바일: 한 줄 세로 흐름. lg 이상: 왼쪽 고정 사이드바(기간·카테고리·기간 핵심) + 오른쪽 본문
@@ -80,7 +88,7 @@ function HomeWithMeta({ meta }: { meta: Meta }) {
         {data.status === "error" && <ErrorBox error={data.error} />}
         {data.status === "ok" &&
           (view === "daily" ? (
-            <DailyView days={data.data.days} state={state} />
+            <DailyView days={data.data.days} state={state} long={rangeRules(rangeLength).source === "months"} />
           ) : (
             <StoryView stories={data.data.stories} range={range} state={state} />
           ))}
@@ -92,8 +100,9 @@ function HomeWithMeta({ meta }: { meta: Meta }) {
 /** 이 중요도 이상은 카드로, 미만은 "그 밖의 소식" 목록으로 */
 const CARD_MIN_IMPORTANCE = 4;
 
-function DailyView({ days, state }: { days: ComposedDay[]; state: ViewState }) {
+function DailyView({ days, state, long }: { days: ComposedDay[]; state: ViewState; long: boolean }) {
   if (days.length === 0) return <Empty state={state} />;
+  if (long) return <MonthGroupedView days={days} state={state} />;
   return (
     <div className="space-y-8">
       {days.map((day) => {
@@ -142,6 +151,55 @@ function DailyView({ days, state }: { days: ComposedDay[]; state: ViewState }) {
   );
 }
 
+/**
+ * 긴 기간(15일 이상) 날짜별 보기. 하루 3~5건 × 최대 180일이라 카드 대신 한 줄형으로,
+ * 월 단위로 묶고 가장 최근 달만 펼친다.
+ */
+function MonthGroupedView({ days, state }: { days: ComposedDay[]; state: ViewState }) {
+  const months = new Map<string, ComposedDay[]>();
+  for (const d of days) months.set(d.date.slice(0, 7), [...(months.get(d.date.slice(0, 7)) ?? []), d]);
+  return (
+    <div className="space-y-4">
+      <p className="text-sm text-text-3">기간이 길어 날마다 가장 중요한 소식만 모았어요.</p>
+      {[...months].map(([month, mdays], i) => {
+        const count = mdays.reduce((n, d) => n + d.events.length, 0);
+        const [y, m] = month.split("-").map(Number);
+        return (
+          <details key={month} open={i === 0} className="group rounded-2xl border border-line bg-surface">
+            <summary className="flex cursor-pointer list-none items-baseline gap-2 px-4 py-3 [&::-webkit-details-marker]:hidden">
+              <span className="text-base font-extrabold">
+                {y}년 {m}월
+              </span>
+              <span className="text-xs text-text-3">
+                {mdays.length}일 · {count}건
+              </span>
+              <span className="ml-auto text-text-3 transition-transform group-open:rotate-180" aria-hidden>
+                ▾
+              </span>
+            </summary>
+            <div className="border-t border-line px-4 xl:grid xl:grid-cols-2 xl:gap-x-8">
+              {mdays.map((day) => (
+                <section
+                  key={day.date}
+                  aria-label={formatDate(day.date)}
+                  className="border-b border-line py-3 last:border-b-0 xl:[&:nth-last-child(2):nth-child(odd)]:border-b-0"
+                >
+                  <h3 className="text-sm font-bold text-text-2">{formatDate(day.date)}</h3>
+                  <div className="divide-y divide-line/70">
+                    {day.events.map((e) => (
+                      <EventRow key={e.id} event={e} storyHref={e.story_id ? storyHref(e.story_id, state) : undefined} />
+                    ))}
+                  </div>
+                </section>
+              ))}
+            </div>
+          </details>
+        );
+      })}
+    </div>
+  );
+}
+
 function StoryView({ stories, range, state }: { stories: RangedStory[]; range: Range; state: ViewState }) {
   // 카드의 상태 요약(스냅샷)은 이슈 상세 파일에 있어 따로 받는다
   const details = useAsync(`stories|${stories.map((s) => s.story.id).join(",")}`, () =>
@@ -175,6 +233,20 @@ function StoryView({ stories, range, state }: { stories: RangedStory[]; range: R
 }
 
 function Empty({ state }: { state: ViewState }) {
+  if (state.preset === "today" && state.categories.length === 0) {
+    return (
+      <div className="rounded-2xl border border-dashed border-line p-6 text-center text-sm leading-relaxed text-text-3">
+        오늘 소식은 아직 모이는 중이에요. 매시간 새로 정리돼요.
+        <br />
+        <Link
+          href={buildHref(state, { preset: "2w", view: null })}
+          className="mt-3 inline-block font-semibold text-accent hover:underline"
+        >
+          최근 2주 보기 →
+        </Link>
+      </div>
+    );
+  }
   return (
     <div className="rounded-2xl border border-dashed border-line p-6 text-center text-sm leading-relaxed text-text-3">
       {formatRange(state.from, state.to)}에 해당하는 뉴스가 없어요.

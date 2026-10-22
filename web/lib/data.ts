@@ -1,6 +1,6 @@
 "use client";
 
-import type { Day, Meta, Story, StoryBrief } from "./types";
+import type { Day, Meta, Month, Story, StoryBrief } from "./types";
 
 // 정적 JSON(/data/...)을 브라우저에서 읽는다. 같은 파일은 한 번만 받는다.
 // meta.json이 매시간 바뀌므로 브라우저 HTTP 캐시는 쓰지 않고(no-cache: 재검증) 메모리에만 둔다.
@@ -30,6 +30,12 @@ export const getMeta = () => load<Meta>("meta.json");
 export async function getDays(meta: Meta, dates: string[]): Promise<Day[]> {
   const available = new Set(meta.days);
   return Promise.all(dates.filter((d) => available.has(d)).map((d) => load<Day>(`days/${d}.json`)));
+}
+
+/** meta.months에 있는 월만 요청한다(긴 기간용 월별 주요 사건) */
+export async function getMonths(meta: Meta, months: string[]): Promise<Month[]> {
+  const available = new Set(meta.months ?? []);
+  return Promise.all(months.filter((m) => available.has(m)).map((m) => load<Month>(`months/${m}.json`)));
 }
 
 /** meta.story_months에 있는 월만 요청한다 */
